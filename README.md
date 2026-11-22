@@ -4,7 +4,7 @@
 
 ---
 
-![Uploading Quick Rename.gif…]()
+
 
 ---
 
