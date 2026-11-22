@@ -1,49 +1,10 @@
-# Outline Heading Inline Rename
+# Quick Rename
 
 在 Obsidian **右侧原生「大纲」面板**里，双击任意标题条目，直接在该条目上进入行内编辑；回车生效，Esc 取消。重命名会同步更新全库中指向该标题的内部链接（等价于原生「Rename this heading」的结果）。
 
-- 插件 id：`outline-heading-inline-rename`
-- 版本：`1.1.0`
-- 最低 Obsidian 版本：`1.5.0`
-
 ---
 
-## 1. 安装与启用
-
-### 方式 A：手动安装（推荐，适用于未上架社区插件市场的情况）
-
-1. 在你的 vault 中创建目录：
-
-   ```
-   <你的库>/.obsidian/plugins/outline-heading-inline-rename/
-   ```
-
-2. 把下面三个文件放进去（**不要**放进子目录，也不要改名）：
-
-   ```
-   manifest.json
-   main.js          ← 编译产物（本仓库已提供，无需自行构建）
-   versions.json    ← 可选，用于版本兼容声明
-   ```
-
-3. 打开 Obsidian → `设置` → `第三方插件`（Community plugins）→ 关闭「安全模式 / Restricted mode」。
-4. 点击「已安装插件」右侧的刷新按钮，找到 **Outline Heading Inline Rename**，打开开关。
-5. （可选）在插件设置中按需调整行为，见第 4 节。
-
-> 如果你拿到的是 `outline-heading-inline-rename-1.1.0.zip`，解压后把整个文件夹放到 `.obsidian/plugins/` 下即可，目录名必须是 `outline-heading-inline-rename`。
-
-### 方式 B：从源码构建
-
-```bash
-npm install
-npm run build     # 类型检查 + 打包生成 main.js
-```
-
-然后把 `manifest.json`、`main.js`（以及可选的 `versions.json`）复制到上面的插件目录。
-
-开发时可用 `npm run dev` 进入 watch 模式；Obsidian 里用 `Ctrl+P` → `Reload app without saving` 重载插件。
-
-### 启用后怎么用
+### 1. 如何使用
 
 1. 打开一条笔记，点右侧边栏的大纲图标（或 `Ctrl+P` → `Outline`）显示原生大纲面板。
 2. **双击**某个标题条目 → 该条目文字变成输入框，并自动全选标题文字。
@@ -89,78 +50,7 @@ npm run build     # 类型检查 + 打包生成 main.js
 
 ---
 
-## 3. 技术实现（为什么是「模拟」原生重命名）
-
-Obsidian 的公开 API（`obsidian.d.ts`）**没有**暴露「重命名标题」的入口，也没有暴露大纲条目的点击回调。因此：
-
-1. **事件挂载**：在 `document` 上以**捕获阶段**监听 `click` / `dblclick` / `mouseover`，先于大纲行自身的处理器执行，从而可以拦下原生跳转、并在同一行上判定「双击」。
-2. **行 → 标题对象**：通过视图内部字段 `view.cachedHeadingDom`（`OutlineTreeItem[]`，每项含 `selfEl`、`innerEl`、`collapseEl`、`heading: HeadingCache`）把被点击的 `.tree-item-self` 映射回 `HeadingCache`；拿不到内部对象时，退化为「DOM 行序号 + 文本」匹配 `metadataCache.getFileCache(file).headings`。
-3. **单击零延迟**：第一次点击**不做任何拦截**，Obsidian 原生处理器立刻执行跳转/高亮；插件只记录「这一行被点了一下、发生在什么时刻」。如果下一次点击落在同一行且在双击窗口内，才 `preventDefault()` + `stopPropagation()` 并进入编辑——此时原生跳转已经在第一次点击时完成，所以不会吞掉跳转，也不会出现延迟。
-4. **编辑时实时读取文件**：`startEdit` 不再信任 metadata 缓存里的标题文本，而是从磁盘读文件，定位对应行（优先用插件自己记录的「最近重命名补丁表」，其次用缓存里的行号 + 标题文本校验，最后退化为逐行扫描）。所以「改完接着再改一次」不需要等缓存刷新，也不需要手动刷新大纲。
-5. **链接同步（模拟原生 Rename heading）**：
-   - 用 `metadataCache.resolvedLinks` 找出所有指向该笔记的候选文件（含文件自身）；
-   - **不使用**缓存里的字符偏移，而是直接用正则扫描候选文件的原文：`/!?\[\[[^\[\]\n]+\]\]|\[[^\]\n]*\]\([^)\n]*\)/g`，逐个 token 交给 `rewriteLinkToken` 判断是否指向「本文件 + 旧标题」；`[[#标题]]` 只认同一文件，`[文字](笔记.md#标题)` 也会处理并保留原有的百分号编码风格；
-   - 这样即使缓存滞后（连续重命名），旧标题名也一定能被匹配到，不会漏改。
-6. **写回顺序**：先做一次只读预检（确认目标行仍是预期的那个标题）→ 逐个候选文件改写链接（字段级、不增减行数）→ 最后改写标题行 → 记录补丁表并乐观更新大纲行文字。
-7. **样式**：`main.ts` 内的 `STYLES` 常量在 `onload` 时注入 `<style id="ohn-outline-inline-rename-styles">`，`onunload` 时移除；不依赖 `styles.css`，复制单文件 `main.js` 即可运行。
-
-> 因为用到了 `cachedHeadingDom` 等内部字段，它们属于「未文档化但稳定多年」的接口（obsidian-typings 也有声明）。下面给出降级方案以应对未来结构变化。
-
----
-
-## 4. 设置项
-
-| 设置 | 默认 | 说明 |
-| --- | --- | --- |
-| 仅在右侧边栏生效 | 开 | 关闭后，任何位置的大纲视图（例如左侧分栏里的大纲）也会响应双击 |
-| 失焦时提交 | 开 | 关闭后，点击别处视为取消，只有 `Enter` 才提交 |
-| 双击判定窗口（毫秒） | 300 | 两次点击的间隔小于该值时才视为双击。150–500 可调；调大更宽容，调小更不容易误触发。单击跳转本身**没有任何延迟** |
-| 显示悬停铅笔按钮（降级方案） | 关 | 鼠标悬停在大纲条目上时右侧出现一个小铅笔按钮，点击同样进入行内重命名 |
-
-### 降级方案说明（技术限制）
-
-- **双击能否直接挂载？** 能。原生大纲条目没有阻止冒泡，也没有自带的双击处理，所以在 `document` 捕获阶段拦截是可靠的，无需额外 DOM 注入。而且**不需要为单击制造延迟**：第一次点击照常放行，只有确认是双击的那一次点击才会被拦下。
-- **什么情况下需要降级？** 如果未来 Obsidian 改动了大纲的 DOM 结构（例如 `.tree-item-self` / `.tree-item-inner` 类名变化），或改动了 `cachedHeadingDom` 字段，双击可能失效。此时打开设置里的「悬停铅笔按钮」，插件会在每个大纲条目右侧注入一个小按钮（`setIcon(button, 'pencil')`），点击即进入同样的行内编辑 —— 这条路径只依赖条目 DOM，不依赖单击/双击的时间窗，更耐结构变化。
-- **移动端**：插件未声明 `isDesktopOnly`，但移动端的双击手势可能被系统缩放拦截，建议在移动端改用铅笔按钮或直接在编辑区改名。
-
----
-
-## 5. 测试
-
-纯函数（标题行改写、链接解析与替换）与 DOM 集成测试（jsdom 模拟大纲视图、虚构 vault/metadataCache，真实派发鼠标/键盘事件，校验文件内容）都已覆盖：
-
-```bash
-npm run typecheck
-npm test
-```
-
-测试覆盖：双击进入编辑、Enter 提交、Esc 取消、失焦提交、重名保护、单击仍能立即触发原生跳转、左侧文件树不受影响、左侧大纲默认不生效、折叠箭头不受影响、`[[...]]` / `[[#...]]` / 别名 / 嵌入 / Markdown 链接五种形式的同步，以及**模拟元数据缓存滞后时连续重命名两次**（改完不刷新大纲、不刷新缓存，继续改同一个标题，链接依旧能正确同步）。
-
----
-
-## 6. 文件清单
-
-```
-manifest.json                插件清单
-versions.json                版本 → 最低 Obsidian 版本
-main.ts                      源码（含样式注入）
-main.js                      编译产物（安装时需要）
-esbuild.config.mjs           打包配置
-tsconfig.json                TypeScript 配置
-tests/                       单元测试 + DOM 集成测试
-community-plugins-entry.json 提交到 obsidian-releases 的条目（可直接复制）
-PUBLISHING.md                发布到社区插件市场的完整步骤
-.github/workflows/release.yml 推 tag 时自动构建并上传 Release 附件
-```
-
-## 7. 已知限制
-
-- 链接同步的候选文件来自 Obsidian 已解析的链接图（`resolvedLinks`）：刚粘贴、尚未被索引的链接可能漏改，等索引完成后重命名一次即可。链接内容本身是**逐文件扫描原文**匹配的，因此连续重命名不会因为缓存偏移过期而漏改。
-- 标题重写按「整行替换」处理：若标题行同时被其他插件用正则改写，可能产生冲突。
-- 大纲条目的文字在提交后**立即**更新（插件会先乐观改写该行文本），随后 Obsidian 在 metadata 缓存刷新后自行重绘整棵大纲树；插件不再修改缓存对象，下一次编辑会重新读文件，所以不受缓存滞后影响。
-- setext 标题（`标题` 换行 `====`）也能改写：源码层按纯文本行处理，缩进与换行符保留。若某些版本的缓存把位置指向下划线行，插件会给出「目标标题已被修改」的提示，不写入错误内容；刷新大纲后重试即可。
-
-## 8. 更新日志
+## 3. 更新日志
 
 ### 1.1.0
 
