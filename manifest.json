@@ -1,0 +1,9 @@
+{
+  "id": "outline-heading-inline-rename",
+  "name": "Outline Heading Inline Rename",
+  "version": "1.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Double-click a heading in the native Outline panel to rename it inline, and update every [[note#heading]] link in the vault like Obsidian's own \"Rename this heading\".",
+  "author": "yuFiee",
+  "isDesktopOnly": false
+}
