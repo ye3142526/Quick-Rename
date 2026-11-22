@@ -4,6 +4,10 @@
 
 ---
 
+![Uploading Quick Rename.gif…]()
+
+---
+
 ### 1. 如何使用
 
 1. 打开一条笔记，点右侧边栏的大纲图标（或 `Ctrl+P` → `Outline`）显示原生大纲面板。
