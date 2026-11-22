@@ -1,0 +1,1 @@
+# obsidian-outline-heading-inline-rename
